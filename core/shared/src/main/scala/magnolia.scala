@@ -464,10 +464,13 @@ object Magnolia {
       } else if (isSealedTrait) {
         checkMethod("dispatch", "sealed traits", "SealedTrait[Typeclass, _]")
 
-        System.err.println("---")
-        System.err.println(genericType)
-        System.err.println(typeConstructor)
-        System.err.println(resultType)
+        def FIXME_reportGADT(s: Any): Unit = ()
+          // System.err.println(s)
+
+        FIXME_reportGADT("---")
+        FIXME_reportGADT(genericType)
+        FIXME_reportGADT(typeConstructor)
+        FIXME_reportGADT(resultType)
 
         def unify(typeParams: List[c.Symbol], typeArgs: List[c.Type],
                   parentParams: List[c.Symbol], parentArgs: List[c.Type]): Option[List[c.Type]] = {
@@ -503,18 +506,18 @@ object Magnolia {
           } else {
 
             (typeArgs zip parentParams zip parentArgs).map { case ((a, pp), pa) =>
-              // println(a, pp, pa)
+              FIXME_reportGADT(s"$a, $pp, $pa")
               if (a =:= pa) {
-                println(s"Dismissing $a =:= $pa.")
+                FIXME_reportGADT(s"Dismissing $a =:= $pa.")
                 Right(List())
               } else if (typeParams.contains(a.typeSymbol)) {
-                println(s"Unifying type param $a $pa.")
+                FIXME_reportGADT(s"Unifying type param $a $pa.")
                 Right(List(a.typeSymbol -> pa))
               } else if (pp.asType.isCovariant && a <:< pa) {
-                println(s"Dismissing (+) $a <:< $pa.")
+                FIXME_reportGADT(s"Dismissing (+) $a <:< $pa.")
                 Right(List())
               } else if (pp.asType.isContravariant && pa <:< a) {
-                println(s"Dismissing (-) $pa <:< $a.")
+                FIXME_reportGADT(s"Dismissing (-) $pa <:< $a.")
                 Right(List())
               } else {
                 if (a.dealias.typeConstructor.typeSymbol.isClass && pa.dealias.typeConstructor.typeSymbol.isClass) {
@@ -524,11 +527,11 @@ object Magnolia {
                   if (ac != pac) {
                     Left(s"Can not equate $a and $pa")
                   } else {
-                    println(s"Fallback $a $pa.")
+                    FIXME_reportGADT(s"Fallback $a $pa.")
                     Right(List(a.typeSymbol -> pa))
                   }
                 } else {
-                  println(s"Fallback $a $pa.")
+                  FIXME_reportGADT(s"Fallback $a $pa.")
                   Right(List(a.typeSymbol -> pa))
                 }
               }
@@ -551,37 +554,37 @@ object Magnolia {
           val typeParams = sub.asType.typeParams
           val typeArgs = thisType(sub).baseType(genericType.typeSymbol).typeArgs
 
-//          println(genericType.typeConstructor.typeParams.head.asType.isCovariant)
-//          println(genericType.typeConstructor.typeParams.head
-//            .asInstanceOf[scala.reflect.internal.Symbols#AbstractTypeSymbol].accurateKindString)
+          // FIXME_reportGADT(genericType.typeConstructor.typeParams.head.asType.isCovariant)
+          // FIXME_reportGADT(genericType.typeConstructor.typeParams.head
+          //   .asInstanceOf[scala.reflect.internal.Symbols#AbstractTypeSymbol].accurateKindString)
 
           unify(typeParams, typeArgs, genericType.typeConstructor.typeParams, genericType.typeArgs) match {
             case None =>
-//              System.err.println(s">>>")
-//              System.err.println(s"\tsub         = $sub")
-//              System.err.println(s"\tsubType     = $subType")
-//              System.err.println(s"\ttypeParams  = $typeParams")
-//              System.err.println(s"\ttypeArgs    = $typeArgs")
-//              System.err.println(s"\tIGNORED")
+              FIXME_reportGADT(s">>>")
+              FIXME_reportGADT(s"\tsub         = $sub")
+              FIXME_reportGADT(s"\tsubType     = $subType")
+              FIXME_reportGADT(s"\ttypeParams  = $typeParams")
+              FIXME_reportGADT(s"\ttypeArgs    = $typeArgs")
+              FIXME_reportGADT(s"\tIGNORED")
               None
 
             case Some(newTypeArgs) =>
               val applied = appliedType(subType.typeConstructor, newTypeArgs)
 
-//              System.err.println(s">>>")
-//              System.err.println(s"\tsub         = $sub")
-//              System.err.println(s"\tsubType     = $subType")
-//              System.err.println(s"\ttypeParams  = $typeParams")
-//              System.err.println(s"\ttypeArgs    = $typeArgs")
-//              System.err.println(s"\tnewTypeArgs = $newTypeArgs")
-//              System.err.println(s"\tapplied     = $applied")
+              FIXME_reportGADT(s">>>")
+              FIXME_reportGADT(s"\tsub         = $sub")
+              FIXME_reportGADT(s"\tsubType     = $subType")
+              FIXME_reportGADT(s"\ttypeParams  = $typeParams")
+              FIXME_reportGADT(s"\ttypeArgs    = $typeArgs")
+              FIXME_reportGADT(s"\tnewTypeArgs = $newTypeArgs")
+              FIXME_reportGADT(s"\tapplied     = $applied")
 
               Some(existentialAbstraction(typeParams, applied))
           }
         }.collect { case Some(x) => x }
 
-        System.err.println(genericSubtypes)
-        System.err.println(subtypes)
+        FIXME_reportGADT(genericSubtypes)
+        FIXME_reportGADT(subtypes)
 
         if (subtypes.isEmpty) {
           error(s"could not find any direct subtypes of $typeSymbol")

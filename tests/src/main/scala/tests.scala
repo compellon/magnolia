@@ -171,9 +171,24 @@ case class VeryLong(
   p23: String
 )
 
+sealed trait GADT[+T]
+object GADT {
+  case class Leaf(value: Int) extends GADT[Int]
+  case class LongLeaf(value: Int) extends GADT[Long]
+}
+
+sealed trait ADT[+T]
+object ADT {
+  case class Leaf[A](value: Int) extends ADT[A]
+}
+
 object Tests extends TestApp {
 
   def tests(): Unit = for (_ <- 1 to 1) {
+    Show.gen[ADT[Int]]
+    Show.gen[GADT[Int]]
+    Show.gen[GADT[_]]
+
     test("construct a Show product instance with alternative apply functions") {
       Show.gen[Test].show(Test("a", "b"))
     }.assert(_ == """Test(param=Param(a=a,b=b))""")

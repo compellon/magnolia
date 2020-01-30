@@ -25,6 +25,14 @@ import mercator._
 object Magnolia {
   import CompileTimeState._
 
+  sealed trait Variance
+  object Variance {
+    final case object Covariant extends Variance
+    final case object Contravariant extends Variance
+    final case object Invariant extends Variance
+    final case object Phantom extends Variance
+  }
+
   /** derives a generic typeclass instance for the type `T`
     *
     *  This is a macro definition method which should be bound to a method defined inside a Magnolia
@@ -452,16 +460,125 @@ object Magnolia {
           }""")
       } else if (isSealedTrait) {
         checkMethod("dispatch", "sealed traits", "SealedTrait[Typeclass, _]")
+
+        System.err.println("---")
+        System.err.println(genericType)
+        System.err.println(typeConstructor)
+        System.err.println(resultType)
+
+        def unify(typeParams: List[c.Symbol], typeArgs: List[c.Type],
+                  parentParams: List[c.Symbol], parentArgs: List[c.Type]): Option[List[c.Type]] = {
+          // ADT[Int, E]
+          // Subtype[A] extends ADT[Int, A]
+          //   parentArgs = [Int, E]
+          //   typeArgs   = [Int, A]
+          //   typeParams = [A]
+          // OK, A => E
+
+          // ADT[Int, E]
+          // Subtype[A] extends ADT[A, Int]
+          //   parentArgs = [Int,   E]
+          //   typeArgs   = [A,   Int]
+          //   typeParams = [A]
+          //
+          // Err, E != Int (in general)
+
+          // ADT[Int]
+          // Subtype] extends ADT[Long]
+          //   parentArgs = [Int]
+          //   typeArgs   = [Long]
+          //   typeParams = []
+          //
+          // Err, Int != Long
+
+          assert(typeArgs.length     == parentArgs.length)
+          assert(parentParams.length == parentArgs.length)
+
+          if (false) {
+            val mapping = (typeArgs.map(_.typeSymbol), parentArgs).zipped.toMap
+            Some(typeParams.map(mapping.withDefault(_.asType.toType)))
+          } else {
+
+            (typeArgs zip parentParams zip parentArgs).map { case ((a, pp), pa) =>
+              // println(a, pp, pa)
+              if (a =:= pa) {
+                println(s"Dismissing $a =:= $pa.")
+                Right(List())
+              } else if (typeParams.contains(a.typeSymbol)) {
+                println(s"Unifying type param $a $pa.")
+                Right(List(a.typeSymbol -> pa))
+              } else if (pp.asType.isCovariant && a <:< pa) {
+                println(s"Dismissing (+) $a <:< $pa.")
+                Right(List())
+              } else if (pp.asType.isContravariant && pa <:< a) {
+                println(s"Dismissing (-) $pa <:< $a.")
+                Right(List())
+              } else {
+                if (a.dealias.typeConstructor.typeSymbol.isClass && pa.dealias.typeConstructor.typeSymbol.isClass) {
+                  val ac = a.dealias.typeConstructor.typeSymbol.asClass
+                  val pac = pa.dealias.typeConstructor.typeSymbol.asClass
+
+                  if (ac != pac) {
+                    Left(s"Can not equate $a and $pa")
+                  } else {
+                    println(s"Fallback $a $pa.")
+                    Right(List(a.typeSymbol -> pa))
+                  }
+                } else {
+                  println(s"Fallback $a $pa.")
+                  Right(List(a.typeSymbol -> pa))
+                }
+              }
+            }.foldLeft(Right(Nil) : Either[String, List[(c.Symbol, c.Type)]]) {
+              case (Left(e), _) => Left(e)
+              case (_, Left(e)) => Left(e)
+              case (Right(l1), Right(l2)) => Right(l1 ++ l2)
+            } match {
+              case Left(e) => None
+              case Right(l) =>
+                val mapping = l.toMap
+                Some(typeParams.map(mapping.withDefault(_.asType.toType)))
+            }
+          }
+        }
+
         val genericSubtypes = knownSubclasses(classType.get).toList.sortBy(_.fullName)
         val subtypes = genericSubtypes.map { sub =>
           val subType = sub.asType.toType // FIXME: Broken for path dependent types
           val typeParams = sub.asType.typeParams
           val typeArgs = thisType(sub).baseType(genericType.typeSymbol).typeArgs
-          val mapping = (typeArgs.map(_.typeSymbol), genericType.typeArgs).zipped.toMap
-          val newTypeArgs = typeParams.map(mapping.withDefault(_.asType.toType))
-          val applied = appliedType(subType.typeConstructor, newTypeArgs)
-          existentialAbstraction(typeParams, applied)
-        }
+
+//          println(genericType.typeConstructor.typeParams.head.asType.isCovariant)
+//          println(genericType.typeConstructor.typeParams.head
+//            .asInstanceOf[scala.reflect.internal.Symbols#AbstractTypeSymbol].accurateKindString)
+
+          unify(typeParams, typeArgs, genericType.typeConstructor.typeParams, genericType.typeArgs) match {
+            case None =>
+//              System.err.println(s">>>")
+//              System.err.println(s"\tsub         = $sub")
+//              System.err.println(s"\tsubType     = $subType")
+//              System.err.println(s"\ttypeParams  = $typeParams")
+//              System.err.println(s"\ttypeArgs    = $typeArgs")
+//              System.err.println(s"\tIGNORED")
+              None
+
+            case Some(newTypeArgs) =>
+              val applied = appliedType(subType.typeConstructor, newTypeArgs)
+
+//              System.err.println(s">>>")
+//              System.err.println(s"\tsub         = $sub")
+//              System.err.println(s"\tsubType     = $subType")
+//              System.err.println(s"\ttypeParams  = $typeParams")
+//              System.err.println(s"\ttypeArgs    = $typeArgs")
+//              System.err.println(s"\tnewTypeArgs = $newTypeArgs")
+//              System.err.println(s"\tapplied     = $applied")
+
+              Some(existentialAbstraction(typeParams, applied))
+          }
+        }.collect { case Some(x) => x }
+
+        System.err.println(genericSubtypes)
+        System.err.println(subtypes)
 
         if (subtypes.isEmpty) {
           error(s"could not find any direct subtypes of $typeSymbol")
